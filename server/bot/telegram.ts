@@ -224,8 +224,13 @@ Your personal AI-powered cryptocurrency analyst with real-time market data from 
 
       const chatId = message.chat.id;
 
-      // Answer callback to remove loading state
-      await this.bot.answerCallbackQuery(callbackQuery.id);
+      // Answer callback to remove loading state (ignore errors for old queries)
+      try {
+        await this.bot.answerCallbackQuery(callbackQuery.id);
+      } catch (error) {
+        // Ignore errors for expired callback queries
+        console.log('Callback query expired or invalid');
+      }
 
       // Handle different callbacks
       if (data.startsWith('analyze_')) {
@@ -331,7 +336,7 @@ Your personal AI-powered cryptocurrency analyst with real-time market data from 
       let message = `📊 *${symbol} ANALYSIS*\n\n`;
       message += `💰 *Current Price:* $${cryptoApi.formatPrice(priceData.price)}\n`;
       message += `24h Change: ${emoji} ${sign}${priceData.changePercent24h.toFixed(2)}% (${sign}$${Math.abs(priceData.change24h).toFixed(2)})\n`;
-      message += `Volume: ${cryptoApi.formatVolume(priceData.volume24h * priceData.price)}\n`;
+      message += `Volume: ${cryptoApi.formatVolume(priceData.volume24h)}\n`;
       message += `High: $${cryptoApi.formatPrice(priceData.high24h)} | Low: $${cryptoApi.formatPrice(priceData.low24h)}\n\n`;
       
       message += `${sentimentEmoji} *AI Analysis*\n`;
@@ -395,7 +400,7 @@ Your personal AI-powered cryptocurrency analyst with real-time market data from 
       let message = `💰 *${symbol} Price Info*\n\n`;
       message += `*Price:* $${cryptoApi.formatPrice(priceData.price)}\n`;
       message += `24h Change: ${emoji} ${sign}${priceData.changePercent24h.toFixed(2)}% (${sign}$${Math.abs(priceData.change24h).toFixed(2)})\n`;
-      message += `Volume: ${cryptoApi.formatVolume(priceData.volume24h * priceData.price)}\n`;
+      message += `Volume: ${cryptoApi.formatVolume(priceData.volume24h)}\n`;
       message += `High: $${cryptoApi.formatPrice(priceData.high24h)}\n`;
       message += `Low: $${cryptoApi.formatPrice(priceData.low24h)}\n\n`;
       message += `_Last updated: ${new Date().toLocaleTimeString()} UTC_`;

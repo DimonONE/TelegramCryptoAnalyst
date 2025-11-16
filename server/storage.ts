@@ -2,8 +2,12 @@ import {
   type PortfolioHolding, 
   type InsertPortfolioHolding,
   type PriceAlert,
-  type InsertPriceAlert
+  type InsertPriceAlert,
+  portfolioHoldings,
+  priceAlerts
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -20,70 +24,73 @@ export interface IStorage {
   markAlertTriggered(id: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private portfolioHoldings: Map<string, PortfolioHolding>;
-  private priceAlerts: Map<string, PriceAlert>;
-
-  constructor() {
-    this.portfolioHoldings = new Map();
-    this.priceAlerts = new Map();
-  }
-
+export class DbStorage implements IStorage {
   async getPortfolioHoldings(chatId: string): Promise<PortfolioHolding[]> {
-    return Array.from(this.portfolioHoldings.values()).filter(
-      (holding) => holding.chatId === chatId
-    );
+    return await db
+      .select()
+      .from(portfolioHoldings)
+      .where(eq(portfolioHoldings.chatId, chatId));
   }
 
   async addPortfolioHolding(insertHolding: InsertPortfolioHolding): Promise<PortfolioHolding> {
     const id = randomUUID();
-    const holding: PortfolioHolding = { ...insertHolding, id };
-    this.portfolioHoldings.set(id, holding);
+    const [holding] = await db
+      .insert(portfolioHoldings)
+      .values({ ...insertHolding, id })
+      .returning();
     return holding;
   }
 
   async removePortfolioHolding(chatId: string, symbol: string): Promise<boolean> {
-    const holdings = Array.from(this.portfolioHoldings.entries());
-    const found = holdings.find(
-      ([_, h]) => h.chatId === chatId && h.symbol.toUpperCase() === symbol.toUpperCase()
-    );
-    if (found) {
-      this.portfolioHoldings.delete(found[0]);
-      return true;
-    }
-    return false;
+    const result = await db
+      .delete(portfolioHoldings)
+      .where(
+        and(
+          eq(portfolioHoldings.chatId, chatId),
+          eq(portfolioHoldings.symbol, symbol.toUpperCase())
+        )
+      )
+      .returning();
+    return result.length > 0;
   }
 
   async getPriceAlerts(chatId: string): Promise<PriceAlert[]> {
-    return Array.from(this.priceAlerts.values()).filter(
-      (alert) => alert.chatId === chatId
-    );
+    return await db
+      .select()
+      .from(priceAlerts)
+      .where(eq(priceAlerts.chatId, chatId));
   }
 
   async getAllActiveAlerts(): Promise<PriceAlert[]> {
-    return Array.from(this.priceAlerts.values()).filter(
-      (alert) => alert.triggered === 0
-    );
+    return await db
+      .select()
+      .from(priceAlerts)
+      .where(eq(priceAlerts.triggered, 0));
   }
 
   async addPriceAlert(insertAlert: InsertPriceAlert): Promise<PriceAlert> {
     const id = randomUUID();
-    const alert: PriceAlert = { ...insertAlert, id, triggered: 0 };
-    this.priceAlerts.set(id, alert);
+    const [alert] = await db
+      .insert(priceAlerts)
+      .values({ ...insertAlert, id, triggered: 0 })
+      .returning();
     return alert;
   }
 
   async removePriceAlert(id: string): Promise<boolean> {
-    return this.priceAlerts.delete(id);
+    const result = await db
+      .delete(priceAlerts)
+      .where(eq(priceAlerts.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   async markAlertTriggered(id: string): Promise<void> {
-    const alert = this.priceAlerts.get(id);
-    if (alert) {
-      alert.triggered = 1;
-      this.priceAlerts.set(id, alert);
-    }
+    await db
+      .update(priceAlerts)
+      .set({ triggered: 1 })
+      .where(eq(priceAlerts.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DbStorage();

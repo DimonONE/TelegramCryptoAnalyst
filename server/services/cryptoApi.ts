@@ -20,36 +20,118 @@ export interface TopCoin {
 }
 
 class CryptoApiService {
-  private binanceBaseUrl = 'https://api.binance.com/api/v3';
   private coingeckoBaseUrl = 'https://api.coingecko.com/api/v3';
+
+  // Map common symbols to CoinGecko IDs
+  private symbolToCoinId(symbol: string): string {
+    const symbolMap: { [key: string]: string } = {
+      // Top cryptocurrencies
+      'BTC': 'bitcoin',
+      'ETH': 'ethereum',
+      'BNB': 'binancecoin',
+      'SOL': 'solana',
+      'XRP': 'ripple',
+      'ADA': 'cardano',
+      'DOGE': 'dogecoin',
+      'DOT': 'polkadot',
+      'MATIC': 'matic-network',
+      'SHIB': 'shiba-inu',
+      'AVAX': 'avalanche-2',
+      'LINK': 'chainlink',
+      'UNI': 'uniswap',
+      'ATOM': 'cosmos',
+      'LTC': 'litecoin',
+      'BCH': 'bitcoin-cash',
+      'XLM': 'stellar',
+      'ALGO': 'algorand',
+      'VET': 'vechain',
+      'ICP': 'internet-computer',
+      'FIL': 'filecoin',
+      'TRX': 'tron',
+      'ETC': 'ethereum-classic',
+      'NEAR': 'near',
+      'APT': 'aptos',
+      'OP': 'optimism',
+      'ARB': 'arbitrum',
+      'SUI': 'sui',
+      // Stablecoins
+      'USDT': 'tether',
+      'USDC': 'usd-coin',
+      'BUSD': 'binance-usd',
+      'DAI': 'dai',
+      'TUSD': 'true-usd',
+      'USDD': 'usdd',
+      // Wrapped tokens
+      'WBTC': 'wrapped-bitcoin',
+      'WETH': 'weth',
+      // Layer 2 and scaling
+      'MANA': 'decentraland',
+      'SAND': 'the-sandbox',
+      'AXS': 'axie-infinity',
+      'IMX': 'immutable-x',
+      'LDO': 'lido-dao',
+      'CRV': 'curve-dao-token',
+      'AAVE': 'aave',
+      'MKR': 'maker',
+      'SNX': 'havven',
+      'COMP': 'compound-governance-token',
+      'YFI': 'yearn-finance',
+      'SUSHI': 'sushi',
+      'GRT': 'the-graph',
+      '1INCH': '1inch',
+      'ENJ': 'enjincoin',
+      'CHZ': 'chiliz',
+      'THETA': 'theta-token',
+      'FTM': 'fantom',
+      'RUNE': 'thorchain',
+      'KLAY': 'klay-token',
+      'HBAR': 'hedera-hashgraph',
+      'FLOW': 'flow',
+      'XTZ': 'tezos',
+      'EOS': 'eos',
+      'NEO': 'neo',
+      'WAVES': 'waves',
+      'ZEC': 'zcash',
+      'DASH': 'dash',
+      'XMR': 'monero',
+    };
+    
+    return symbolMap[symbol.toUpperCase()] || symbol.toLowerCase();
+  }
 
   async getPrice(symbol: string): Promise<CryptoPrice | null> {
     try {
       const upperSymbol = symbol.toUpperCase();
-      const pair = `${upperSymbol}USDT`;
+      const coinId = this.symbolToCoinId(symbol);
 
-      // Get current price and 24h stats from Binance
-      const [tickerResponse, priceResponse] = await Promise.all([
-        axios.get(`${this.binanceBaseUrl}/ticker/24hr`, { params: { symbol: pair } }),
-        axios.get(`${this.binanceBaseUrl}/ticker/price`, { params: { symbol: pair } })
-      ]);
+      // Get current price and 24h market data from CoinGecko
+      const response = await axios.get(`${this.coingeckoBaseUrl}/coins/markets`, {
+        params: {
+          vs_currency: 'usd',
+          ids: coinId,
+          order: 'market_cap_desc',
+          per_page: 1,
+          page: 1,
+          sparkline: false,
+          price_change_percentage: '24h'
+        }
+      });
 
-      const ticker = tickerResponse.data;
-      const currentPrice = parseFloat(priceResponse.data.price);
-      const priceChange = parseFloat(ticker.priceChange);
-      const priceChangePercent = parseFloat(ticker.priceChangePercent);
-      const volume = parseFloat(ticker.volume);
-      const high = parseFloat(ticker.highPrice);
-      const low = parseFloat(ticker.lowPrice);
+      if (!response.data || response.data.length === 0) {
+        return null;
+      }
+
+      const data = response.data[0];
 
       return {
         symbol: upperSymbol,
-        price: currentPrice,
-        change24h: priceChange,
-        changePercent24h: priceChangePercent,
-        volume24h: volume,
-        high24h: high,
-        low24h: low,
+        price: data.current_price,
+        change24h: data.price_change_24h || 0,
+        changePercent24h: data.price_change_percentage_24h || 0,
+        volume24h: data.total_volume || 0,
+        high24h: data.high_24h || data.current_price,
+        low24h: data.low_24h || data.current_price,
+        marketCap: data.market_cap,
       };
     } catch (error) {
       console.error(`Error fetching price for ${symbol}:`, error);
@@ -60,36 +142,82 @@ class CryptoApiService {
   async getMultiplePrices(symbols: string[]): Promise<Map<string, CryptoPrice>> {
     const prices = new Map<string, CryptoPrice>();
     
-    const results = await Promise.allSettled(
-      symbols.map(symbol => this.getPrice(symbol))
-    );
+    try {
+      // Convert symbols to coin IDs
+      const coinIds = symbols.map(s => this.symbolToCoinId(s)).join(',');
 
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value) {
-        prices.set(symbols[index].toUpperCase(), result.value);
+      // Fetch all prices in one request
+      const response = await axios.get(`${this.coingeckoBaseUrl}/coins/markets`, {
+        params: {
+          vs_currency: 'usd',
+          ids: coinIds,
+          order: 'market_cap_desc',
+          per_page: symbols.length,
+          page: 1,
+          sparkline: false,
+          price_change_percentage: '24h'
+        }
+      });
+
+      if (response.data && Array.isArray(response.data)) {
+        response.data.forEach((data: any) => {
+          // Find the original symbol
+          const symbol = symbols.find(s => this.symbolToCoinId(s) === data.id);
+          if (symbol) {
+            prices.set(symbol.toUpperCase(), {
+              symbol: symbol.toUpperCase(),
+              price: data.current_price,
+              change24h: data.price_change_24h || 0,
+              changePercent24h: data.price_change_percentage_24h || 0,
+              volume24h: data.total_volume || 0,
+              high24h: data.high_24h || data.current_price,
+              low24h: data.low_24h || data.current_price,
+              marketCap: data.market_cap,
+            });
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.error('Error fetching multiple prices:', error);
+      // Fallback to individual requests
+      const results = await Promise.allSettled(
+        symbols.map(symbol => this.getPrice(symbol))
+      );
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          prices.set(symbols[index].toUpperCase(), result.value);
+        }
+      });
+    }
 
     return prices;
   }
 
   async getTopGainers(limit: number = 10): Promise<TopCoin[]> {
     try {
-      // Get all USDT pairs from Binance
-      const response = await axios.get(`${this.binanceBaseUrl}/ticker/24hr`);
-      const tickers = response.data;
+      // Get top coins by market cap with 24h change
+      const response = await axios.get(`${this.coingeckoBaseUrl}/coins/markets`, {
+        params: {
+          vs_currency: 'usd',
+          order: 'market_cap_desc',
+          per_page: 250, // Get larger set to filter gainers
+          page: 1,
+          sparkline: false,
+          price_change_percentage: '24h'
+        }
+      });
 
-      // Filter for USDT pairs and sort by percentage gain
-      const gainers = tickers
-        .filter((t: any) => t.symbol.endsWith('USDT') && parseFloat(t.priceChangePercent) > 0)
-        .sort((a: any, b: any) => parseFloat(b.priceChangePercent) - parseFloat(a.priceChangePercent))
+      const gainers = response.data
+        .filter((coin: any) => coin.price_change_percentage_24h > 0)
+        .sort((a: any, b: any) => b.price_change_percentage_24h - a.price_change_percentage_24h)
         .slice(0, limit)
-        .map((t: any) => ({
-          symbol: t.symbol.replace('USDT', ''),
-          name: t.symbol.replace('USDT', ''),
-          price: parseFloat(t.lastPrice),
-          changePercent24h: parseFloat(t.priceChangePercent),
-          marketCap: parseFloat(t.quoteVolume),
+        .map((coin: any) => ({
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          price: coin.current_price,
+          changePercent24h: coin.price_change_percentage_24h,
+          marketCap: coin.market_cap,
         }));
 
       return gainers;
@@ -101,20 +229,28 @@ class CryptoApiService {
 
   async getTopLosers(limit: number = 10): Promise<TopCoin[]> {
     try {
-      const response = await axios.get(`${this.binanceBaseUrl}/ticker/24hr`);
-      const tickers = response.data;
+      // Get top coins by market cap with 24h change
+      const response = await axios.get(`${this.coingeckoBaseUrl}/coins/markets`, {
+        params: {
+          vs_currency: 'usd',
+          order: 'market_cap_desc',
+          per_page: 250, // Get larger set to filter losers
+          page: 1,
+          sparkline: false,
+          price_change_percentage: '24h'
+        }
+      });
 
-      // Filter for USDT pairs and sort by percentage loss
-      const losers = tickers
-        .filter((t: any) => t.symbol.endsWith('USDT') && parseFloat(t.priceChangePercent) < 0)
-        .sort((a: any, b: any) => parseFloat(a.priceChangePercent) - parseFloat(b.priceChangePercent))
+      const losers = response.data
+        .filter((coin: any) => coin.price_change_percentage_24h < 0)
+        .sort((a: any, b: any) => a.price_change_percentage_24h - b.price_change_percentage_24h)
         .slice(0, limit)
-        .map((t: any) => ({
-          symbol: t.symbol.replace('USDT', ''),
-          name: t.symbol.replace('USDT', ''),
-          price: parseFloat(t.lastPrice),
-          changePercent24h: parseFloat(t.priceChangePercent),
-          marketCap: parseFloat(t.quoteVolume),
+        .map((coin: any) => ({
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          price: coin.current_price,
+          changePercent24h: coin.price_change_percentage_24h,
+          marketCap: coin.market_cap,
         }));
 
       return losers;
@@ -124,44 +260,25 @@ class CryptoApiService {
     }
   }
 
-  async getMarketOverview(): Promise<string> {
-    try {
-      // Get major coins data
-      const majorCoins = ['BTC', 'ETH', 'BNB', 'SOL', 'XRP'];
-      const prices = await this.getMultiplePrices(majorCoins);
-      
-      let overview = '📊 MARKET OVERVIEW\n\n';
-      
-      for (const [symbol, data] of prices) {
-        const emoji = data.changePercent24h >= 0 ? '🟢' : '🔴';
-        const sign = data.changePercent24h >= 0 ? '+' : '';
-        overview += `${symbol}: $${this.formatPrice(data.price)} ${emoji} ${sign}${data.changePercent24h.toFixed(2)}%\n`;
-      }
-
-      return overview;
-    } catch (error) {
-      console.error('Error getting market overview:', error);
-      return 'Unable to fetch market overview at this time.';
-    }
-  }
-
+  // Helper method to format large numbers
   formatPrice(price: number): string {
-    if (price >= 1) {
+    if (price >= 1000) {
       return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    } else if (price >= 0.01) {
+    } else if (price >= 1) {
       return price.toFixed(4);
     } else {
       return price.toFixed(8);
     }
   }
 
+  // Helper method to format volume
   formatVolume(volume: number): string {
-    if (volume >= 1_000_000_000) {
-      return `$${(volume / 1_000_000_000).toFixed(2)}B`;
-    } else if (volume >= 1_000_000) {
-      return `$${(volume / 1_000_000).toFixed(2)}M`;
-    } else if (volume >= 1_000) {
-      return `$${(volume / 1_000).toFixed(2)}K`;
+    if (volume >= 1000000000) {
+      return `$${(volume / 1000000000).toFixed(2)}B`;
+    } else if (volume >= 1000000) {
+      return `$${(volume / 1000000).toFixed(2)}M`;
+    } else if (volume >= 1000) {
+      return `$${(volume / 1000).toFixed(2)}K`;
     }
     return `$${volume.toFixed(2)}`;
   }
