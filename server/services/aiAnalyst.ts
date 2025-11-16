@@ -1,8 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { CryptoPrice } from "./cryptoApi";
 
-// Reference: javascript_gemini blueprint integration
-// Note that the newest Gemini model series is "gemini-2.5-flash" or "gemini-2.5-pro"
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export interface AnalysisResult {
@@ -15,23 +13,23 @@ export interface AnalysisResult {
 class AIAnalystService {
   async analyzeCrypto(symbol: string, priceData: CryptoPrice): Promise<AnalysisResult> {
     try {
-      const prompt = `You are an expert cryptocurrency analyst. Analyze ${symbol} based on this data:
+      const prompt = `Ти експерт з криптовалютного аналізу. Проаналізуй ${symbol} на основі цих даних:
 
-Current Price: $${priceData.price}
-24h Change: ${priceData.changePercent24h > 0 ? '+' : ''}${priceData.changePercent24h.toFixed(2)}%
-24h Volume: ${priceData.volume24h}
-24h High: $${priceData.high24h}
-24h Low: $${priceData.low24h}
+Поточна ціна: $${priceData.price}
+Зміна за 24 год: ${priceData.changePercent24h > 0 ? '+' : ''}${priceData.changePercent24h.toFixed(2)}%
+Обсяг за 24 год: ${priceData.volume24h}
+Максимум за 24 год: $${priceData.high24h}
+Мінімум за 24 год: $${priceData.low24h}
 
-Provide a concise analysis in JSON format with:
+Надай короткий аналіз у форматі JSON з:
 {
-  "summary": "2-3 sentence overview of current market situation",
+  "summary": "2-3 речення про поточну ситуацію на ринку",
   "sentiment": "bullish" | "bearish" | "neutral",
-  "keyPoints": ["3-4 bullet points with specific insights"],
-  "recommendation": "Clear action recommendation (buy/hold/sell/wait) with reasoning"
+  "keyPoints": ["3-4 основні висновки"],
+  "recommendation": "Чітка рекомендація (купувати/тримати/продавати/чекати) з поясненням"
 }
 
-Keep it professional, data-driven, and actionable. Focus on price action, volume, and momentum.`;
+Залишай текст професійним, орієнтованим на дані та практичним. Зосередься на динаміці ціни, обсягах та трендах.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -55,7 +53,6 @@ Keep it professional, data-driven, and actionable. Focus on price action, volume
       if (rawJson) {
         try {
           const analysis: AnalysisResult = JSON.parse(rawJson);
-          // Validate the parsed data
           if (analysis.summary && analysis.sentiment && analysis.keyPoints && analysis.recommendation) {
             return analysis;
           }
@@ -63,12 +60,10 @@ Keep it professional, data-driven, and actionable. Focus on price action, volume
           console.error('JSON parse error:', parseError);
         }
       }
-      
-      // If parsing fails, use fallback
+
       throw new Error("Invalid response format");
     } catch (error) {
       console.error(`AI analysis error for ${symbol}:`, error);
-      // Fallback analysis
       return this.getFallbackAnalysis(symbol, priceData);
     }
   }
@@ -79,52 +74,52 @@ Keep it professional, data-driven, and actionable. Focus on price action, volume
         .map(([sym, data]) => `${sym}: $${data.price} (${data.changePercent24h > 0 ? '+' : ''}${data.changePercent24h.toFixed(2)}%)`)
         .join('\n');
 
-      const prompt = `Compare these cryptocurrencies and provide insights:
+      const prompt = `Порівняй ці криптовалюти та дай висновки:
 
 ${dataString}
 
-Give a brief comparison (3-4 sentences) highlighting:
-1. Which coin shows strongest momentum
-2. Relative performance differences
-3. Which might be better positioned short-term
+Надай коротке порівняння (3-4 речення), включаючи:
+1. Яка монета має найсильніший тренд
+2. Відносні відмінності у продуктивності
+3. Яка монета краще позиціонована на короткий термін
 
-Keep it concise and actionable.`;
+Будь коротким та практичним.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
       });
 
-      return response.text || "Unable to generate comparison at this time.";
+      return response.text || "Неможливо створити порівняння на даний момент.";
     } catch (error) {
       console.error('Comparison error:', error);
-      return "Unable to compare coins at this time.";
+      return "Неможливо порівняти монети на даний момент.";
     }
   }
 
   async predictTrend(symbol: string, priceData: CryptoPrice): Promise<string> {
     try {
-      const prompt = `Based on ${symbol} current data:
-- Price: $${priceData.price}
-- 24h: ${priceData.changePercent24h > 0 ? '+' : ''}${priceData.changePercent24h.toFixed(2)}%
-- Volume: ${priceData.volume24h}
+      const prompt = `На основі поточних даних ${symbol}:
+- Ціна: $${priceData.price}
+- Зміна за 24 год: ${priceData.changePercent24h > 0 ? '+' : ''}${priceData.changePercent24h.toFixed(2)}%
+- Обсяг: ${priceData.volume24h}
 
-Provide a short-term trend prediction (next 24-48 hours) in 2-3 sentences. Consider:
-- Current momentum
-- Volume trends
-- Recent price action
+Надай прогноз короткострокового тренду (на наступні 24-48 годин) у 2-3 реченнях. Розглянь:
+- Поточний тренд
+- Динаміку обсягів
+- Недавню поведінку ціни
 
-Be specific but acknowledge uncertainty.`;
+Будь конкретним, але враховуй невизначеність.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
       });
 
-      return response.text || "Unable to predict trend at this time.";
+      return response.text || "Неможливо створити прогноз на даний момент.";
     } catch (error) {
       console.error('Prediction error:', error);
-      return "Unable to generate prediction at this time.";
+      return "Неможливо створити прогноз на даний момент.";
     }
   }
 
@@ -140,16 +135,16 @@ Be specific but acknowledge uncertainty.`;
     }
 
     return {
-      summary: `${symbol} is currently trading at $${priceData.price.toFixed(2)} with a ${priceData.changePercent24h.toFixed(2)}% change in the last 24 hours.`,
+      summary: `${symbol} торгується зараз по $${priceData.price.toFixed(2)} зі зміною ${priceData.changePercent24h.toFixed(2)}% за останні 24 години.`,
       sentiment,
       keyPoints: [
-        `24h price range: $${priceData.low24h.toFixed(2)} - $${priceData.high24h.toFixed(2)}`,
-        `Current momentum is ${isPositive ? 'positive' : 'negative'} with ${absChange.toFixed(2)}% change`,
-        `Trading volume indicates ${priceData.volume24h > 100000 ? 'strong' : 'moderate'} market activity`,
+        `Діапазон цін за 24 год: $${priceData.low24h.toFixed(2)} - $${priceData.high24h.toFixed(2)}`,
+        `Поточний тренд ${isPositive ? 'позитивний' : 'негативний'} з зміною ${absChange.toFixed(2)}%`,
+        `Обсяг торгів вказує на ${priceData.volume24h > 100000 ? 'високу' : 'помірну'} активність ринку`,
       ],
       recommendation: absChange > 5 
-        ? `${isPositive ? 'Strong upward' : 'Strong downward'} momentum detected. Monitor closely for potential ${isPositive ? 'continuation' : 'reversal'}.`
-        : 'Market showing consolidation. Wait for clearer signals before taking action.',
+        ? `${isPositive ? 'Сильний зростаючий' : 'Сильний спадний'} тренд. Слідкуйте уважно для потенційного ${isPositive ? 'продовження' : 'розвороту'}.`
+        : 'Ринок демонструє консолидацію. Чекайте більш чітких сигналів перед дією.',
     };
   }
 }
