@@ -29,7 +29,7 @@ class AIAnalystService {
   "recommendation": "Чітка рекомендація (купувати/тримати/продавати/чекати) з поясненням"
 }
 
-Залишай текст професійним, орієнтованим на дані та практичним. Зосередься на динаміці ціни, обсягах та трендах.`;
+Тримай стиль професійним, орієнтованим на дані та практичним. Зосередься на динаміці ціни, обсягах та трендах.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -74,11 +74,11 @@ class AIAnalystService {
         .map(([sym, data]) => `${sym}: $${data.price} (${data.changePercent24h > 0 ? '+' : ''}${data.changePercent24h.toFixed(2)}%)`)
         .join('\n');
 
-      const prompt = `Порівняй ці криптовалюти та дай висновки:
+      const prompt = `Порівняй ці криптовалюти та дай короткі висновки:
 
 ${dataString}
 
-Надай коротке порівняння (3-4 речення), включаючи:
+Напиши 3-4 речення, включаючи:
 1. Яка монета має найсильніший тренд
 2. Відносні відмінності у продуктивності
 3. Яка монета краще позиціонована на короткий термін
@@ -104,7 +104,7 @@ ${dataString}
 - Зміна за 24 год: ${priceData.changePercent24h > 0 ? '+' : ''}${priceData.changePercent24h.toFixed(2)}%
 - Обсяг: ${priceData.volume24h}
 
-Надай прогноз короткострокового тренду (на наступні 24-48 годин) у 2-3 реченнях. Розглянь:
+Надай короткостроковий прогноз тренду (на наступні 24-48 годин) у 2-3 реченнях. Врахуй:
 - Поточний тренд
 - Динаміку обсягів
 - Недавню поведінку ціни
@@ -135,7 +135,7 @@ ${dataString}
     }
 
     return {
-      summary: `${symbol} торгується зараз по $${priceData.price.toFixed(2)} зі зміною ${priceData.changePercent24h.toFixed(2)}% за останні 24 години.`,
+      summary: `${symbol} зараз торгується по $${priceData.price.toFixed(2)} зі зміною ${priceData.changePercent24h.toFixed(2)}% за останні 24 години.`,
       sentiment,
       keyPoints: [
         `Діапазон цін за 24 год: $${priceData.low24h.toFixed(2)} - $${priceData.high24h.toFixed(2)}`,
